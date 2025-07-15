@@ -1,4 +1,5 @@
-set(COMPONENT_SRCDIRS ".")
-set(COMPONENT_ADD_INCLUDEDIRS ".")
-
-register_component()
+idf_component_register(
+    SRCS "app_main.c"
+    INCLUDE_DIRS "."
+    REQUIRES esp32-rotary-encoder esp_driver_gpio bt nvs_flash
+)

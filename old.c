@@ -5,6 +5,7 @@
  * @author Max McGee
  * 
  */
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,12 +18,14 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_bt.h"
+
 #include "esp_gap_ble_api.h"
 #include "esp_gatts_api.h"
 #include "esp_bt_defs.h"
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
 #include "esp_gatt_common_api.h"
+
 #include "rotary_encoder.h"
 
 #define TAG "BLE_ENCODER"
@@ -48,24 +51,23 @@
 #define YELLOW_ZONE_MIN     -10
 #define YELLOW_ZONE_MAX     10
 
-// BLE characteristic value constraints
 #define GATTS_SERVICE_UUID   0x00FF
 #define GATTS_CHAR_UUID      0xFF01
-#define GATTS_CALIBRATION_CHAR_UUID  0xFF02
-#define GATTS_NUM_HANDLE     6
+#define GATTS_NUM_HANDLE     4
 #define DEVICE_NAME          "BLE_Encoder"
+
+// BLE characteristic value constraints
 #define CHAR_VALUE_MAX_LEN   20
 #define ADV_DATA_MAX_LEN     31
 
-// State variables
 static bool connection_established = false;
 static bool notifications_enabled = false;
 static bool ble_service_started = false;
-static bool calibration_mode = false;
 
-// GATT communication variables
 static uint16_t gatt_handle_table[GATTS_NUM_HANDLE];
 static esp_gatt_char_prop_t property = 0;
+
+// Fixed: Use proper buffer size and initialization
 static uint8_t char_value_buffer[CHAR_VALUE_MAX_LEN] = {0x00};
 static esp_attr_value_t gatts_char_val = {
     .attr_max_len = CHAR_VALUE_MAX_LEN,
@@ -78,9 +80,8 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 static uint16_t notify_conn_id = 0;
 static esp_gatt_if_t notify_gatts_if = 0;
 
-// Device Vars
-static const char *CONN_TAG = DEVICE_NAME;
-static const char device_name[] = DEVICE_NAME;
+static const char *CONN_TAG = "BLE_ENCODER";
+static const char device_name[] = "BLE_Encoder";
 
 // UUIDs
 static uint16_t primary_service_uuid         = ESP_GATT_UUID_PRI_SERVICE;
@@ -89,11 +90,9 @@ static uint16_t character_client_config_uuid = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
 
 // Characteristic Properties
 static uint8_t char_prop_read_notify = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
-static uint8_t char_prop_read_write = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE;
 
 // CCCD (Client Characteristic Configuration Descriptor) default value
 static uint8_t cccd[2] = {0x00, 0x00};
-static uint8_t calibration_cccd[2] = {0x00, 0x00};
 
 static esp_ble_adv_params_t adv_params = {
     .adv_int_min = 0x20,  // 20ms
@@ -120,7 +119,6 @@ typedef struct {
 static const led_color_t LED_GREEN = {false, true, false};
 static const led_color_t LED_YELLOW = {true, true, false};
 static const led_color_t LED_RED = {true, false, false};
-static const led_color_t LED_BLUE = {false, false, true};
 
 /**
  * @brief Set RGB LED color
@@ -213,6 +211,19 @@ static QueueHandle_t initialize_rotary_encoder(rotary_encoder_info_t *info)
 }
 
 /**
+ * @brief Process rotary encoder event
+ * @param event Rotary encoder event structure
+ */
+static void process_encoder_event(rotary_encoder_event_t event)
+{
+    ESP_LOGI(TAG, "Event: position %d, direction %s", 
+             event.state.position,
+             event.state.direction ? (event.state.direction == ROTARY_ENCODER_DIRECTION_CLOCKWISE ? "CW" : "CCW") : "NOT_SET");
+    
+    update_led_for_position(event.state.position);
+}
+
+/**
  * @brief Send BLE notification with bounds checking
  * @param value Value to send
  * @param len Length of value
@@ -242,20 +253,14 @@ static esp_err_t send_ble_notification(uint8_t *value, size_t len)
                                      gatt_handle_table[2], len, value, false);
 }
 
-// Encoder Zone Control
 typedef enum {
     ZONE_GREEN,
     ZONE_YELLOW,
     ZONE_RED
 } encoder_zone_t;
 
-static encoder_zone_t previous_zone = -1;
+static encoder_zone_t previous_zone = -1;  // invalid initially
 
-/**
- * @brief Get zone based on encoder position
- * @param position Current encoder position
- * @return Zone structure
- */
 static encoder_zone_t get_zone_for_position(int position)
 {
     if (position >= GREEN_ZONE_MIN && position <= GREEN_ZONE_MAX) {
@@ -268,35 +273,17 @@ static encoder_zone_t get_zone_for_position(int position)
     }
 }
 
-/**
- * @brief Process rotary encoder event
- * @param event Rotary encoder event structure
- */
-static void process_encoder_event(rotary_encoder_event_t event)
-{
-    ESP_LOGI(TAG, "Event: position %d, direction %s", 
-             event.state.position,
-             event.state.direction ? (event.state.direction == ROTARY_ENCODER_DIRECTION_CLOCKWISE ? "CW" : "CCW") : "NOT_SET");
-    
-    if (!calibration_mode)
-        update_led_for_position(event.state.position);
-}
 
-/**
- * @brief Poll rotary encoder state and update related values
- * @param info Pointer to rotary encoder info structure
- */
 static void poll_encoder_state(rotary_encoder_info_t *info)
 {
     rotary_encoder_state_t state = { 0 };
     ESP_ERROR_CHECK(rotary_encoder_get_state(info, &state));
 
-    if (!calibration_mode)
-        update_led_for_position(state.position);
+    update_led_for_position(state.position);
 
     encoder_zone_t current_zone = get_zone_for_position(state.position);
 
-    if (current_zone != previous_zone && ble_service_started && !calibration_mode) {
+    if (current_zone != previous_zone && ble_service_started) {
         previous_zone = current_zone;
 
         uint8_t notification_val = 0x00;
@@ -340,16 +327,8 @@ static void handle_button_events(rotary_encoder_info_t *info, bool *prev_button_
 
     if (button_pressed && !(*prev_button_pressed)) {
         // Button was just pressed
-        ESP_LOGI(TAG, "Button Pressed!");
-        if(calibration_mode){
-            ESP_LOGI(TAG, "Setting zero point");
-            ESP_ERROR_CHECK(rotary_encoder_reset(info));
-            uint8_t notification_val = 0x04;
-            esp_err_t ret = send_ble_notification(&notification_val, sizeof(notification_val));
-            if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
-                ESP_LOGE(TAG, "Failed to send notification: %s", esp_err_to_name(ret));
-            }
-        }
+        ESP_LOGI(TAG, "Button Pressed! Setting zero point");
+        ESP_ERROR_CHECK(rotary_encoder_reset(info));
     } else if (!button_pressed && (*prev_button_pressed)) {
         // Button was just released
         ESP_LOGI(TAG, "Button Released!");
@@ -506,30 +485,29 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
 {
     static uint16_t gatt_service_uuid = GATTS_SERVICE_UUID;
     static uint16_t gatt_char_uuid    = GATTS_CHAR_UUID;
-    static uint16_t gatt_calibration_char_uuid = GATTS_CALIBRATION_CHAR_UUID;
 
     switch (event) {
     case ESP_GATTS_REG_EVT:
         ESP_LOGI(CONN_TAG, "GATT server register, status %d, app_id %d", param->reg.status, param->reg.app_id);
         
         // Create attribute table
-                esp_gatts_attr_db_t gatt_db[GATTS_NUM_HANDLE] = {
+        esp_gatts_attr_db_t gatt_db[GATTS_NUM_HANDLE] = {
             // Service Declaration
             [0] = {
                 {ESP_GATT_AUTO_RSP},
                 {ESP_UUID_LEN_16, (uint8_t*)&primary_service_uuid, ESP_GATT_PERM_READ,
                 sizeof(uint16_t), sizeof(gatt_service_uuid), (uint8_t*)&gatt_service_uuid}
             },
-            // Characteristic Declaration 
+            // Characteristic Declaration
             [1] = {
                 {ESP_GATT_AUTO_RSP},
                 {ESP_UUID_LEN_16, (uint8_t*)&character_declaration_uuid, ESP_GATT_PERM_READ,
                 sizeof(uint8_t), sizeof(uint8_t), (uint8_t*)&char_prop_read_notify}
             },
-            // Characteristic Value
+            // Characteristic Value - FIXED
             [2] = {
                 {ESP_GATT_RSP_BY_APP},
-                {ESP_UUID_LEN_16, (uint8_t*)&gatt_char_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, // Perm_write added for flexibility, though not used in original plan
+                {ESP_UUID_LEN_16, (uint8_t*)&gatt_char_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
                 CHAR_VALUE_MAX_LEN, sizeof(char_value_buffer), char_value_buffer}
             },
             // Client Characteristic Configuration Descriptor (CCCD)
@@ -537,18 +515,6 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
                 {ESP_GATT_AUTO_RSP},
                 {ESP_UUID_LEN_16, (uint8_t*)&character_client_config_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
                 sizeof(uint16_t), sizeof(cccd), (uint8_t*)cccd}
-            },
-            // Calibration Characteristic Declaration
-            [4] = {
-                {ESP_GATT_AUTO_RSP},
-                {ESP_UUID_LEN_16, (uint8_t*)&character_declaration_uuid, ESP_GATT_PERM_READ,
-                sizeof(uint8_t), sizeof(uint8_t), (uint8_t*)&char_prop_read_write}
-            },
-            // Calibration Characteristic Value
-            [5] = {
-                {ESP_GATT_RSP_BY_APP},
-                {ESP_UUID_LEN_16, (uint8_t*)&gatt_calibration_char_uuid, ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE,
-                sizeof(uint8_t), sizeof(uint8_t), (uint8_t*)&calibration_mode} // Store calibration_mode state directly
             }
         };
         
@@ -583,16 +549,8 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         esp_gatt_rsp_t rsp;
         memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
         rsp.attr_value.handle = param->read.handle;
-
-        // Handle read for calibration characteristic
-        if (param->read.handle == gatt_handle_table[5]) { // Handle for calibration_mode value
-            rsp.attr_value.len = 1;
-            rsp.attr_value.value[0] = calibration_mode ? 0x01 : 0x00;
-            ESP_LOGI(CONN_TAG, "Reading calibration mode: %s", calibration_mode ? "ON" : "OFF");
-        } else {
-            rsp.attr_value.len = 1;
-            rsp.attr_value.value[0] = 0x00;  // Default value for other reads
-        }
+        rsp.attr_value.len = 1;
+        rsp.attr_value.value[0] = 0x00;  // Default value
         esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id, ESP_GATT_OK, &rsp);
         break;
 
@@ -641,20 +599,6 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
                 notifications_enabled = false;
             }
         }
-        // Handle write for Calibration Mode characteristic (handle 5)
-        else if (param->write.handle == gatt_handle_table[5] && param->write.len == 1) {
-            if (param->write.value[0] == 0x01) {
-                calibration_mode = true;
-                set_led_color(LED_BLUE);
-                ESP_LOGI(CONN_TAG, "Calibration mode ENABLED. Notifications DISABLED.");
-            } else if (param->write.value[0] == 0x00) {
-                calibration_mode = false;
-                // notifications_enabled remains as per CCCD setting
-                ESP_LOGI(CONN_TAG, "Calibration mode DISABLED.");
-            } else {
-                ESP_LOGW(CONN_TAG, "Invalid value for calibration characteristic: 0x%02x", param->write.value[0]);
-            }
-        }
     
         if (param->write.need_rsp) {
             esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
@@ -666,7 +610,6 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
                 ESP_BD_ADDR_HEX(param->disconnect.remote_bda), param->disconnect.reason);
         connection_established = false;
         notifications_enabled = false;
-        calibration_mode = false;
         notify_conn_id = 0;
         notify_gatts_if = 0;
         esp_ble_gap_start_advertising(&adv_params);
