@@ -14,8 +14,6 @@ Build the application with:
     $ idf.py menuconfig    # set your serial configuration and the Rotary Encoder GPIO - see Circuit below
     $ idf.py -p (PORT) flash monitor
 
-Typically this kind of rotary encoder has at least four pins - +ve supply, ground, and two quadrature pins labelled CLK (or A) and DT (or B). The device used for testing is the one supplied with the KY-040 rotary encoder, as mentioned [here](http://henrysbench.capnfatz.com/henrys-bench/arduino-sensors-and-input/keyes-ky-040-arduino-rotary-encoder-user-manual/).
-
 Debouncing is performed by the driver using a state machine that ensures correct tracking of direction, and emits a directional event only at the resting states.
 
 ## Dependencies
@@ -23,34 +21,3 @@ Debouncing is performed by the driver using a state machine that ensures correct
 This application makes use of the following components (included as submodules):
 
  * components/[esp32-rotary-encoder](https://github.com/DavidAntliff/esp32-rotary-encoder)
-
-## Circuit
-
-1. Connect GND to the ESP32 ground reference.
-1. Connect + to the ESP32 3.3V output.
-1. Connect DT (pin B) to an ESP32 GPIO.
-1. Connect CLK (pin A) to an ESP32 GPIO.
-1. Use `idf.py menuconfig` to configure the correct ESP32 GPIOs according to the previous connections.
-
-1. Optional: connect a 100nF capacitor between DT and GND for electrical smoothing.
-1. Optional: connect a 100nF capacitor between CLK and GND for electrical smoothing.
-
-It can also be illustrative to connect LEDs between 3.3V and each of the pins DT and CLK, such that they will light when those outputs are low.
-
-## Source Code
-
-The source is available from [GitHub](https://www.github.com/DavidAntliff/esp32-rotary-encoder-example).
-
-## License
-
-The code in this project is licensed under the GNU GPL Version 3, or (at your option) any later version. - see [LICENSE](LICENSE) for details.
-
-## Notes
-
-The state machine is designed to operate with inverted values of the rotary encoder's A and B outputs. This is because pull-ups are used to read the outputs.
-
-Power should be supplied to the rotary encoder on pin + otherwise the transitional levels are floating, which causes multiple interrupts to fire on the ESP32 input.
-
-The KY-040 rotary encoder is quite noisy and although this code does a fairly good job, there are some occasional missed events. This is mitigated with some analogue filtering on the A and B outputs of the rotary encoder. For example, a pair of 100nF capacitors from ground to pin A and B works well enough for me.
-
-This project also works with higher-resolution rotary encoders such as the [LPD3806](https://www.codrey.com/electronic-circuits/paupers-rotary-encoder/). Note that (at least for the device I have), you need to supply more than 5V to the rotary encoder because of an internal linear regulator - I have had success with 9V.
