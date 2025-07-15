@@ -1,7 +1,6 @@
-# ESP32 Rotary Encoder Example
+# ESP32 BLE Rotary Encoder
 
 [![Platform: ESP-IDF](https://img.shields.io/badge/ESP--IDF-v3.0%2B-blue.svg)](https://docs.espressif.com/projects/esp-idf/en/stable/get-started/)
-[![Build Status](https://travis-ci.org/DavidAntliff/esp32-rotary-encoder-example.svg?branch=master)](https://travis-ci.org/DavidAntliff/esp32-rotary-encoder-example)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3+-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 This is a demonstration of using the [esp32-rotary-encoder](https://github.com/DavidAntliff/esp32-rotary-encoder) driver to track the relative position of an [incremental](https://en.wikipedia.org/wiki/Rotary_encoder#Incremental) rotary encoder.
