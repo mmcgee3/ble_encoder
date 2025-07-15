@@ -14,7 +14,13 @@ Build the application with:
     $ idf.py menuconfig    # set your serial configuration and the Rotary Encoder GPIO - see Circuit below
     $ idf.py -p (PORT) flash monitor
 
-Debouncing is performed by the driver using a state machine that ensures correct tracking of direction, and emits a directional event only at the resting states.
+Install dependencies for the device example:
+
+    $ pip install ./requirements.txt
+
+Run simple device:
+
+    $ python ./device_example.py
 
 ## Dependencies
 
