@@ -5,7 +5,6 @@ from bleak import BleakClient, BleakScanner, BleakError
 
 CHAR_UUID = "ff01"
 FULL_CHAR_UUID = "0000ff01-0000-1000-8000-00805f9b34fb"
-# NEW: UUID for the calibration characteristic
 CALIBRATION_CHAR_UUID = "ff02"
 FULL_CALIBRATION_CHAR_UUID = "0000ff02-0000-1000-8000-00805f9b34fb"
 
@@ -15,11 +14,9 @@ DEVICE_NAME = "BLE_Encoder"
 alert_flag = False
 connected_flag = False
 current_zone = "NONE"
-running = True  # Used to signal exit
-calibration_mode_active = False # NEW: Shared state for calibration mode
-ble_loop = None # NEW: Global to store the BLE thread's event loop
-
-# BLE Client instance
+running = True 
+calibration_mode_active = False
+ble_loop = None 
 ble_client_global = None
 
 def draw_ui(screen, font):
@@ -31,8 +28,6 @@ def draw_ui(screen, font):
     else:
         status = "Disconnected"
         status_color = (255, 0, 0)
-
-    # NEW: Calibration mode display
     if calibration_mode_active:
         calibration_text = "CALIBRATION MODE: ON"
         calibration_color = (0, 0, 200)
@@ -55,14 +50,14 @@ def draw_ui(screen, font):
 
     status_surface = font.render(status, True, status_color)
     alert_surface = font.render(alert_text, True, alert_color)
-    calibration_surface = font.render(calibration_text, True, calibration_color) # NEW
+    calibration_surface = font.render(calibration_text, True, calibration_color) 
 
     screen.blit(status_surface, (20, 30))
     screen.blit(alert_surface, (20, 100))
-    screen.blit(calibration_surface, (20, 150)) # NEW: Position for calibration status
+    screen.blit(calibration_surface, (20, 150)) 
 
     # Draw Calibration button
-    pygame.draw.rect(screen, (50, 50, 50), (290, 140, 130, 40)) # Button background
+    pygame.draw.rect(screen, (50, 50, 50), (290, 140, 130, 40))
     button_text_color = (255, 255, 255)
     button_text = "Calibrate" if not calibration_mode_active else "Stop Cal"
     button_surface = font.render(button_text, True, button_text_color)
@@ -70,7 +65,6 @@ def draw_ui(screen, font):
 
     pygame.display.flip()
 
-# 0x01 = red, 0x02 = green, 0x03 = yellow
 def notification_handler(sender, data):
     global current_zone
     if not data:
@@ -90,7 +84,7 @@ def on_disconnect(client):
     print("Device disconnected callback triggered.")
     connected_flag = False
     current_zone = "NONE"
-    calibration_mode_active = False # Ensure this is reset
+    calibration_mode_active = False 
     
 
 async def toggle_calibration_mode():
@@ -151,16 +145,16 @@ async def ble_task():
         # If we reach here, we are disconnected or errored
         connected_flag = False
         current_zone = "NONE"
-        calibration_mode_active = False # Reset calibration flag on disconnect
-        ble_client_global = None # Clear client instance
+        calibration_mode_active = False 
+        ble_client_global = None 
         print("Disconnected. Reconnecting in 3s...")
         await asyncio.sleep(3)
 
 def start_ble_loop():
-    global ble_loop # NEW: Make sure we modify the global variable
-    ble_loop = asyncio.new_event_loop() # NEW: Create a new event loop for this thread
-    asyncio.set_event_loop(ble_loop) # NEW: Set it as the current loop for this thread
-    ble_loop.run_until_complete(ble_task()) # NEW: Run the async task
+    global ble_loop 
+    ble_loop = asyncio.new_event_loop() 
+    asyncio.set_event_loop(ble_loop) 
+    ble_loop.run_until_complete(ble_task()) 
 
 def main():
     global running
@@ -174,7 +168,7 @@ def main():
     WIDTH, HEIGHT = 500, 250
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("BLE Encoder Monitor")
-    font = pygame.font.SysFont(None, 30) # Reduced font size to fit new elements
+    font = pygame.font.SysFont(None, 30) 
 
     clock = pygame.time.Clock()
     while running:
@@ -188,7 +182,6 @@ def main():
                 if 290 <= mouse_pos[0] <= (300 + 130) and \
                    140 <= mouse_pos[1] <= (140 + 40):
                     print("Calibration button clicked!")
-                    # NEW: Schedule the coroutine on the BLE thread's event loop
                     if ble_loop and ble_loop.is_running():
                         asyncio.run_coroutine_threadsafe(toggle_calibration_mode(), ble_loop)
                     else:
@@ -202,5 +195,4 @@ def main():
     ble_thread.join()
 
 if __name__ == "__main__":
-    # Removed previous asyncio loop setup here as start_ble_loop now handles it explicitly
     main()
