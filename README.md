@@ -1,11 +1,8 @@
 # ESP32 BLE Rotary Encoder
 
 [![Platform: ESP-IDF](https://img.shields.io/badge/ESP--IDF-v3.0%2B-blue.svg)](https://docs.espressif.com/projects/esp-idf/en/stable/get-started/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3+-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-This is a demonstration of using the [esp32-rotary-encoder](https://github.com/DavidAntliff/esp32-rotary-encoder) driver to track the relative position of an [incremental](https://en.wikipedia.org/wiki/Rotary_encoder#Incremental) rotary encoder.
-
-It is written and tested for v3.3 of the [ESP-IDF](https://github.com/espressif/esp-idf) environment, using the xtensa-esp32-elf toolchain (gcc version 5.2.0). It may or may not work with older or newer versions.
+This project makes use of the [esp32-rotary-encoder](https://github.com/DavidAntliff/esp32-rotary-encoder) driver to track the relative position of an [incremental](https://en.wikipedia.org/wiki/Rotary_encoder#Incremental) rotary encoder which is used to deteramine the "zone" of the encoder. This zone is than sent as a BLE notification.
 
 Ensure that submodules are cloned:
 
@@ -13,7 +10,7 @@ Ensure that submodules are cloned:
 
 Build the application with:
 
-    $ cd esp32-rotary-encoder-example.git
+    $ cd ble_encoder
     $ idf.py menuconfig    # set your serial configuration and the Rotary Encoder GPIO - see Circuit below
     $ idf.py -p (PORT) flash monitor
 
